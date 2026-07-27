@@ -1,0 +1,25 @@
+# ---- Betriebssystem ----
+.DS_Store
+.DS_Store?
+._*
+.AppleDouble
+.LSOverride
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ---- Editoren und IDEs ----
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+*~
+
+# ---- Lokales und Vertrauliches ----
+.env
+.env.*
+*.local
