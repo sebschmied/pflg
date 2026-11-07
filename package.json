@@ -1,0 +1,19 @@
+{
+  "name": "pflegegrad-widerspruch",
+  "version": "1.0.0",
+  "description": "Lokale Arbeitsmappe für einen Widerspruch gegen ein MD-Pflegegutachten (NBA, Anlage 1 und 2 zu § 15 SGB XI)",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node --test \"test/**/*.test.js\""
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.0.0",
+    "express": "^5.1.0"
+  }
+}

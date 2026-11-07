@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex" />
+<meta name="color-scheme" content="light dark" />
+<title>Pflegegrad-Widerspruch</title>
+<link rel="icon" href="data:," />
+<link rel="stylesheet" href="styles.css" />
+<script>
+  try {
+    var t = localStorage.getItem('theme');
+    if (t === 'dark' || t === 'light') document.documentElement.classList.add(t);
+  } catch (e) {}
+</script>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <h1>Pflegegrad-Widerspruch</h1>
+      <input id="case-title" class="case-title" type="text" maxlength="200"
+             placeholder="Bezeichnung des Falls (optional)" aria-label="Bezeichnung des Falls" />
+    </div>
+    <div class="top-actions">
+      <span id="save-status" class="save-status" data-state="saved" role="status" aria-live="polite">Alles gespeichert</span>
+      <button id="retry-btn" class="btn small" type="button" hidden>Erneut versuchen</button>
+      <a id="export-btn" class="btn" href="/api/export.md" download="widerspruch-begruendungen.md">Markdown-Export</a>
+      <button id="theme-btn" class="icon-btn" type="button" aria-label="Farbschema wechseln" title="Farbschema wechseln">◐</button>
+    </div>
+  </header>
+
+  <nav id="tabs" class="tabs" aria-label="Bereiche"></nav>
+
+  <main id="view" class="view">
+    <p class="loading">Lade Fall …</p>
+  </main>
+
+  <footer class="footer">
+    <p>
+      Hilfsmittel zur Vorbereitung eines Widerspruchs, keine Rechtsberatung. Die Berechnung folgt Anlage 1 und 2 zu § 15 SGB XI.
+      Alle Daten bleiben auf diesem Rechner. Die Begründungen gehen an eine Behörde — bitte vor dem Absenden selbst prüfen.
+    </p>
+  </footer>
+</div>
+<noscript><p style="padding:1rem">Diese Anwendung benötigt JavaScript.</p></noscript>
+<script type="module" src="app.js"></script>
+</body>
+</html>

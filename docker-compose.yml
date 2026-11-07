@@ -1,0 +1,16 @@
+services:
+  workbench:
+    build: .
+    image: pflegegrad-widerspruch
+    init: true
+    restart: unless-stopped
+    ports:
+      # Nur auf diesem Rechner erreichbar (Gesundheitsdaten)
+      - "127.0.0.1:3000:3000"
+    environment:
+      DATA_DIR: /data
+      HOST: 0.0.0.0
+      PORT: "3000"
+    volumes:
+      # Die SQLite-Datei liegt in ./data und überlebt Neustarts und Neubauten
+      - ./data:/data
