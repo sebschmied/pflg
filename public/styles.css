@@ -294,3 +294,40 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
   outline: 1px dashed var(--red);
 }
 .crit.void-md .col.md .ctl, .crit.void-own .col.own .ctl { opacity: .55; }
+
+/* Übersicht: Lage im Pflegegrad-Bereich */
+.range-wrap { display: contents; }
+.range-bar { padding: 44px 38px 58px; }
+.range-track { position: relative; height: 34px; }
+.seg {
+  position: absolute; top: 0; bottom: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden;
+  border-right: 2px solid var(--card); box-sizing: border-box;
+}
+.seg.g0 { background: var(--bg2); color: var(--muted); border-radius: 8px 0 0 8px; }
+.seg.g1 { background: color-mix(in srgb, var(--green) 16%, var(--card)); }
+.seg.g2 { background: color-mix(in srgb, var(--green) 30%, var(--card)); }
+.seg.g3 { background: color-mix(in srgb, var(--green) 45%, var(--card)); }
+.seg.g4 { background: color-mix(in srgb, var(--green) 60%, var(--card)); }
+.seg.g5 { background: color-mix(in srgb, var(--green) 75%, var(--card)); border-right: 0; border-radius: 0 8px 8px 0; }
+.seg.own-here { box-shadow: inset 0 0 0 2px var(--teal); }
+.tick { position: absolute; top: 100%; height: 6px; border-left: 1px solid var(--muted); }
+.tick span {
+  position: absolute; top: 7px; left: 0; transform: translateX(-50%);
+  font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.marker { position: absolute; top: 0; bottom: 0; width: 0; }
+.marker-pin { position: absolute; left: -2px; width: 4px; top: -8px; bottom: -8px; border-radius: 2px; background: var(--ink); }
+.marker.own .marker-pin { background: var(--teal); }
+.marker-label {
+  position: absolute; left: 0; transform: translateX(-50%); white-space: nowrap;
+  font-size: 12px; font-weight: 700; padding: 1px 9px; border-radius: 999px;
+  background: var(--ink); color: var(--card);
+}
+.marker.own .marker-label { background: var(--teal); }
+.marker.above .marker-label { bottom: calc(100% + 10px); }
+.marker.below .marker-label { top: calc(100% + 30px); }
+.marker.ghost .marker-pin { left: -1px; width: 0; background: none; border-left: 2px dashed var(--red); border-radius: 0; top: -4px; bottom: -4px; }
+.range-facts { margin: 0 0 10px; padding-left: 20px; }
+.range-card .banner ul { margin: 6px 0; }
+.range-title { display: block; margin-bottom: 4px; }

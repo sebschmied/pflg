@@ -10,6 +10,7 @@ Die Anwendung basiert auf dem Open-Source-Projekt [pflegegrad-rechner](https://g
 
 - **Zwei Bewertungen je Kriterium:** 64 Kriterien der Module 1 bis 6 (NBA), jeweils MD-Wert und eigener Wert. Modul 3 (Häufigkeiten) und Modul 5 (Maßnahmen pro Tag, Woche, Monat, Besuche) haben eigene Eingabearten.
 - **Live-Ergebnis:** Modulpunkte, gewichtete Punkte und Pflegegrad für MD und eigene Bewertung nebeneinander, dazu die Punkte bis zum nächsten Pflegegrad. Von Modul 2 und 3 zählt der höhere Wert, das andere ist durchgestrichen.
+- **Lage im Pflegegrad-Bereich:** Eine Skala von 0 bis 100 Punkten zeigt, wo MD und eigene Bewertung innerhalb der Pflegegrad-Bereiche liegen. Dazu prüft die Übersicht, wie belastbar ein Widerspruch ist: Entfällt der höhere Pflegegrad schon, wenn der MD bei einem einzigen Kriterium recht behält („knapp“), bei zwei („mittel“) oder erst bei mindestens drei („deutlich“)? Das ist eine Rechenhilfe, keine Prognose der Entscheidung.
 - **Gegenprobe:** Sie tragen die im Gutachten gedruckten Punkte ein. Weichen sie von der Berechnung aus Ihren MD-Eingaben ab, erscheint eine Warnung. So finden Sie Übertragungsfehler.
 - **Begründungen mit Status:** Bei jeder Abweichung ist eine Begründung Pflicht (Status: offen, in Bearbeitung, fertig). Die Arbeitsliste auf der Übersicht zeigt, was noch fehlt, filterbar nach Status und Modul.
 - **Notizen:** je Kriterium und allgemein, mit Zeitstempel, zum Beispiel für Fragen an Pflegekräfte. Notizen werden nicht exportiert.

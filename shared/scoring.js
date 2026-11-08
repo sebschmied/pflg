@@ -236,6 +236,59 @@ export function deviations(mdRatings = {}, ownRatings = {}) {
   return out;
 }
 
+// ---- Tragfähigkeit eines Widerspruchs ---------------------------------
+
+// Untere und obere Grenze (gewichtete Punkte) des Pflegegrad-Bereichs von `grade`.
+export function gradeRange(grade) {
+  const lower = grade === 0 ? 0 : PFLEGEGRAD_THRESHOLDS.find(t => t.grade === grade).from;
+  const next = PFLEGEGRAD_THRESHOLDS.find(t => t.grade === grade + 1);
+  return { lower, upper: next ? next.from : 100 };
+}
+
+// Prüft, wie belastbar der Pflegegrad-Gewinn der eigenen Bewertung ist: Was passiert, wenn der MD
+// bei einzelnen Abweichungen recht behält? Es werden alle Einzelfälle und alle Paare geprüft.
+//   level: 'none' (kein höherer Pflegegrad), 'fragile' (ein Kriterium genügt, um den Gewinn zu
+//          verlieren), 'tight' (zwei genügen), 'solid' (mindestens drei nötig)
+export function objectionRobustness(mdRatings = {}, ownRatings = {}) {
+  const md = scoreCase(mdRatings);
+  const own = scoreCase(ownRatings);
+  const devs = deviations(mdRatings, ownRatings);
+  const result = { level: 'none', gain: own.pflegegrad - md.pflegegrad, singles: [], minToLose: null };
+  if (result.gain <= 0 || devs.length === 0) return result;
+
+  const withMd = ids => {
+    const r = { ...ownRatings };
+    for (const id of ids) r[id] = mdRatings[id];
+    return scoreCase(r);
+  };
+  const failed = score => score.pflegegrad <= md.pflegegrad;
+
+  result.singles = devs.map(d => {
+    const s = withMd([d.criterionId]);
+    return {
+      criterionId: d.criterionId,
+      grade: s.pflegegrad,
+      total: s.totalWeighted,
+      lost: own.totalWeighted - s.totalWeighted,
+      losesGain: failed(s)
+    };
+  }).sort((a, b) => b.lost - a.lost);
+
+  if (result.singles.some(s => s.losesGain)) {
+    result.minToLose = 1;
+  } else {
+    let pairBreaks = false;
+    for (let i = 0; i < devs.length && !pairBreaks; i++) {
+      for (let j = i + 1; j < devs.length; j++) {
+        if (failed(withMd([devs[i].criterionId, devs[j].criterionId]))) { pairBreaks = true; break; }
+      }
+    }
+    result.minToLose = pairBreaks ? 2 : 3;
+  }
+  result.level = result.minToLose === 1 ? 'fragile' : result.minToLose === 2 ? 'tight' : 'solid';
+  return result;
+}
+
 // ---- Gegenprobe zu den im MD-Gutachten gedruckten Punkten -------------
 
 function isNumber(n) {

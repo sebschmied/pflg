@@ -1,5 +1,7 @@
 import { MODULES, MODULES_BY_ID, CRITERIA_BY_ID, SEVERITY_LABELS } from '/shared/catalog.js';
-import { scoreCase, deviations, crossCheck, normalizeValue, valuesEqual, describeValue } from '/shared/scoring.js';
+import {
+  scoreCase, deviations, crossCheck, normalizeValue, valuesEqual, describeValue, gradeRange, objectionRobustness
+} from '/shared/scoring.js';
 import { h, fmt, gradeText } from './dom.js';
 import { api, createSaver } from './api.js';
 import { createControl } from './controls.js';
@@ -135,11 +137,21 @@ function createNotesWidget(criterionId) {
 
 // ---- Berechnung --------------------------------------------------------
 
+// Die Tragfähigkeitsprüfung rechnet viele Varianten durch. Ergebnis merken, solange sich keine Bewertung ändert
+// (Begründungen und Notizen lösen ebenfalls recompute() aus).
+let robustCache = { key: '', value: null };
+function robustness() {
+  const key = JSON.stringify([state.ratings.md, state.ratings.own]);
+  if (robustCache.key !== key) robustCache = { key, value: objectionRobustness(state.ratings.md, state.ratings.own) };
+  return robustCache.value;
+}
+
 function recompute() {
   calc = {
     md: scoreCase(state.ratings.md),
     own: scoreCase(state.ratings.own),
-    devs: deviations(state.ratings.md, state.ratings.own)
+    devs: deviations(state.ratings.md, state.ratings.own),
+    robust: robustness()
   };
   calc.devIds = new Set(calc.devs.map(d => d.criterionId));
   calc.devByModule = Object.fromEntries(MODULES.map(m => [m.id, 0]));
@@ -290,6 +302,94 @@ function deltaCard() {
   );
 }
 
+// Lage der Gesamtpunkte innerhalb der Pflegegrad-Bereiche und Belastbarkeit eines Widerspruchs
+function rangeCard() {
+  const { md, own, robust } = calc;
+  const pct = n => Math.max(0, Math.min(100, n));
+  const hasBoth = md.answered > 0 && own.answered > 0;
+
+  const segments = [0, 1, 2, 3, 4, 5].map(g => {
+    const r = gradeRange(g);
+    return h('div', {
+      class: `seg g${g}${own.pflegegrad === g ? ' own-here' : ''}${md.pflegegrad === g ? ' md-here' : ''}`,
+      style: `left:${r.lower}%;width:${r.upper - r.lower}%`,
+      title: g === 0 ? `bis unter ${fmt(r.upper)} Punkte` : `${fmt(r.lower)} bis unter ${fmt(r.upper)} Punkte${g === 5 ? ' (bis 100)' : ''}`
+    }, h('span', { text: g === 0 ? 'kein PG' : `PG ${g}` }));
+  });
+  const ticks = [12.5, 27, 47.5, 70, 90].map(v =>
+    h('div', { class: 'tick', style: `left:${v}%` }, h('span', { text: fmt(v) })));
+
+  const marker = (cls, label, score, above) => h('div', {
+    class: `marker ${cls} ${above ? 'above' : 'below'}`, style: `left:${pct(score)}%`,
+    title: `${label}: ${fmt(score)} gewichtete Punkte`
+  }, h('span', { class: 'marker-label', text: `${label} ${fmt(score)}` }), h('span', { class: 'marker-pin' }));
+
+  const markers = [];
+  if (md.answered > 0) markers.push(marker('md', 'MD', md.totalWeighted, true));
+  if (own.answered > 0) markers.push(marker('own', 'Eigene', own.totalWeighted, false));
+  const worst = robust.singles[0];
+  if (worst && robust.level !== 'none' && worst.total !== own.totalWeighted) {
+    markers.push(h('div', {
+      class: 'marker ghost', style: `left:${pct(worst.total)}%`,
+      title: `Eigene Punkte, falls der MD bei ${worst.criterionId} recht behält: ${fmt(worst.total)}`
+    }, h('span', { class: 'marker-pin' })));
+  }
+
+  const bar = h('div', { class: 'range-bar' },
+    h('div', { class: 'range-track' }, segments, ticks, markers));
+
+  const facts = [];
+  if (md.answered > 0) {
+    const mdRange = gradeRange(md.pflegegrad);
+    facts.push(md.nextPflegegrad
+      ? `MD: ${fmt(md.totalWeighted)} Punkte, ${fmt(md.pointsToNext)} unter der Grenze zu ${gradeText(md.nextPflegegrad)} (ab ${fmt(mdRange.upper)}).`
+      : `MD: ${fmt(md.totalWeighted)} Punkte, höchster Pflegegrad.`);
+  }
+  if (own.answered > 0) {
+    const ownRange = gradeRange(own.pflegegrad);
+    const above = own.pflegegrad > 0 ? ` ${fmt(own.totalWeighted - ownRange.lower)} Punkte über der Untergrenze von ${gradeText(own.pflegegrad)} (ab ${fmt(ownRange.lower)}).` : '';
+    facts.push(`Eigene Bewertung: ${fmt(own.totalWeighted)} Punkte.${above}`);
+  }
+
+  let kind = 'info';
+  let title = '';
+  const details = [];
+  if (!hasBoth) {
+    title = 'Sobald MD-Werte und eigene Werte erfasst sind, sehen Sie hier, wie belastbar ein Widerspruch ist.';
+  } else if (robust.level === 'none') {
+    kind = own.totalWeighted > md.totalWeighted ? 'warn' : 'info';
+    title = 'Mit Ihrer Bewertung ergibt sich kein höherer Pflegegrad.';
+    if (own.nextPflegegrad) details.push(`Bis ${gradeText(own.nextPflegegrad)} fehlen Ihnen noch ${fmt(own.pointsToNext)} gewichtete Punkte.`);
+  } else {
+    const names = robust.singles.slice(0, 3).map(s => h('li', null,
+      h('a', { href: `#/m/${CRITERIA_BY_ID[s.criterionId].module}/${s.criterionId}`, text: `${s.criterionId} ${CRITERIA_BY_ID[s.criterionId].name}` }),
+      ` – ${s.losesGain ? 'ohne dieses Kriterium entfällt der höhere Pflegegrad' : s.lost > 0 ? `ohne dieses Kriterium ${fmt(s.lost)} Punkte weniger, der höhere Pflegegrad bleibt` : 'allein ohne Einfluss auf den Pflegegrad (wirkt nur zusammen mit anderen)'}`));
+    if (robust.level === 'fragile') {
+      kind = 'bad';
+      title = 'Knapp: Der Erfolg hängt an einem einzelnen Kriterium.';
+      details.push('Behält der MD bei nur einem dieser Kriterien recht, bleibt es beim bisherigen Pflegegrad. Diese Begründungen müssen besonders überzeugen:');
+    } else if (robust.level === 'tight') {
+      kind = 'warn';
+      title = 'Mittel: Schon zwei Kriterien genügen, damit der Widerspruch scheitern kann.';
+      details.push('Einzeln reicht keine Abweichung aus. Am meisten Gewicht haben:');
+    } else {
+      kind = 'good';
+      title = 'Deutlich: Der MD müsste bei mindestens drei Abweichungen recht behalten.';
+      details.push('Die Abweichungen stützen sich gegenseitig. Zuerst zu prüfen:');
+    }
+    details.push(h('ul', null, names));
+    details.push(h('p', { class: 'muted small', text: 'Geprüft wird, ob der höhere Pflegegrad bestehen bleibt, wenn der MD bei einzelnen Abweichungen (alle Einzelfälle und alle Zweierkombinationen) recht behält. Die rote gestrichelte Linie in der Skala zeigt Ihre Punkte, falls der MD beim gewichtigsten Kriterium recht behält (nur sichtbar, wenn das etwas ändert). Das ist eine Rechenhilfe, keine Prognose der Entscheidung.' }));
+  }
+
+  return h('section', { class: 'card range-card' },
+    h('h2', { text: 'Wo liegen wir im Pflegegrad-Bereich?' }),
+    h('p', { class: 'muted small', text: 'Gewichtete Gesamtpunkte von 0 bis 100. Je weiter ein Wert von der nächsten Grenze entfernt ist, desto sicherer ist das Ergebnis.' }),
+    bar,
+    h('ul', { class: 'range-facts' }, facts.map(f => h('li', { text: f }))),
+    h('div', { class: `banner ${kind}` }, h('strong', { class: 'range-title', text: title }), details)
+  );
+}
+
 function moduleTable() {
   const cell = (content, cls) => h('td', { class: cls }, content);
   const sideCells = (s, m) => {
@@ -380,6 +480,7 @@ function renderOverview() {
   const verdictBox = h('div', { class: 'banner info' });
   const crossBanner = h('div', { class: 'banner warn', hidden: true });
   const cards = h('div', { class: 'result-cards' });
+  const rangeWrap = h('div', { class: 'range-wrap' });
   const tableWrap = h('div', { class: 'table-wrap' });
   const tableCard = h('section', { class: 'card' },
     h('h2', { text: 'Module im Vergleich' }),
@@ -461,6 +562,7 @@ function renderOverview() {
       resultCard('own', 'Eigene Bewertung', calc.own),
       deltaCard()
     );
+    rangeWrap.replaceChildren(rangeCard());
     tableWrap.replaceChildren(moduleTable());
     worklist.update();
     generalNotes.update();
@@ -486,7 +588,7 @@ function renderOverview() {
     setPrintedStatus('pflegegrad', pr?.pflegegrad, calc.md.pflegegrad);
   }
 
-  return { nodes: [verdictBox, crossBanner, cards, tableCard, worklist.el, notesCard, printedCard], update };
+  return { nodes: [verdictBox, crossBanner, cards, rangeWrap, tableCard, worklist.el, notesCard, printedCard], update };
 }
 
 // ---- Modulseite --------------------------------------------------------

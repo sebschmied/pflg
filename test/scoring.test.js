@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { MODULES, MODULES_BY_ID, CRITERIA, CRITERIA_BY_ID } from '../shared/catalog.js';
 import {
-  scoreModule, scoreCase, pflegegradFor, deviations, crossCheck, validateValue, describeValue
+  scoreModule, scoreCase, pflegegradFor, deviations, crossCheck, validateValue, describeValue,
+  gradeRange, objectionRobustness
 } from '../shared/scoring.js';
 
 // Baut Bewertungen für ein Modul (ohne 4.11, 4.12 und Modul 5), die genau `target` Einzelpunkte ergeben.
@@ -332,4 +333,69 @@ test('describeValue: deutsche Klartexte', () => {
     describeValue(CRITERIA_BY_ID['4.11'], { status: 'vollstaendig_inkontinent', rating: 3 }),
     'vollständig inkontinent, unselbständig (3 Punkte)'
   );
+});
+
+test('gradeRange: Grenzen der Pflegegrad-Bereiche', () => {
+  assert.deepEqual(gradeRange(0), { lower: 0, upper: 12.5 });
+  assert.deepEqual(gradeRange(1), { lower: 12.5, upper: 27 });
+  assert.deepEqual(gradeRange(3), { lower: 47.5, upper: 70 });
+  assert.deepEqual(gradeRange(5), { lower: 90, upper: 100 });
+});
+
+// Modul 4 (Gewicht 40 %): Einzelpunkte 3 bis 7 ergeben 10, 8 bis 18 ergeben 20 gewichtete Punkte.
+// Pflegegrad 1 beginnt bei 12,5 gewichteten Punkten, ohne weitere Module also erst ab 8 Einzelpunkten.
+const crit = (ids, value) => Object.fromEntries(ids.map(id => [id, value]));
+
+test('Tragfähigkeit: ein einzelnes Kriterium entscheidet (knapp)', () => {
+  const md = { '4.8': 2, '4.1': 1 };    // 6 + 1 = 7 Einzelpunkte -> 10 Punkte -> kein Pflegegrad
+  const own = { '4.8': 2, '4.1': 2 };   // 6 + 2 = 8 Einzelpunkte -> 20 Punkte -> Pflegegrad 1
+  assert.equal(scoreCase(md).pflegegrad, 0);
+  assert.equal(scoreCase(own).pflegegrad, 1);
+  const r = objectionRobustness(md, own);
+  assert.equal(r.level, 'fragile');
+  assert.equal(r.minToLose, 1);
+  assert.equal(r.gain, 1);
+  assert.equal(r.singles.length, 1);
+  assert.equal(r.singles[0].criterionId, '4.1');
+  assert.equal(r.singles[0].losesGain, true);
+  assert.equal(r.singles[0].total, 10);
+  assert.equal(r.singles[0].lost, 10);
+});
+
+test('Tragfähigkeit: zwei Kriterien müssen kippen (mittel)', () => {
+  const md = { '4.8': 2, '4.1': 1 };    // 7 Einzelpunkte -> kein Pflegegrad
+  const own = { '4.8': 3, '4.1': 2 };   // 9 + 2 = 11 Einzelpunkte -> Pflegegrad 1
+  const r = objectionRobustness(md, own);
+  assert.equal(r.level, 'tight');
+  assert.equal(r.minToLose, 2);
+  assert.ok(r.singles.every(s => !s.losesGain));
+});
+
+test('Tragfähigkeit: mindestens drei Kriterien müssen kippen (deutlich)', () => {
+  const ids = ['4.1', '4.2', '4.3', '4.4', '4.5'];
+  const md = crit(ids, 0);              // 0 Einzelpunkte
+  const own = crit(ids, 3);             // 15 Einzelpunkte -> 20 Punkte -> Pflegegrad 1
+  const r = objectionRobustness(md, own);
+  assert.equal(r.level, 'solid');
+  assert.equal(r.minToLose, 3);
+  assert.equal(r.singles.length, 5);
+});
+
+test('Tragfähigkeit: Einzelfälle sind nach Punktverlust sortiert', () => {
+  const md = { '4.8': 0, '4.1': 0, '4.2': 0 };
+  const own = { '4.8': 3, '4.1': 3, '4.2': 1 };  // 9 + 3 + 1 = 13 Einzelpunkte
+  const r = objectionRobustness(md, own);
+  const lost = r.singles.map(s => s.lost);
+  assert.deepEqual(lost, [...lost].sort((a, b) => b - a));
+});
+
+test('Tragfähigkeit: ohne höheren Pflegegrad oder ohne Abweichung gibt es nichts zu prüfen', () => {
+  const same = { '4.8': 2, '4.1': 1 };
+  assert.equal(objectionRobustness(same, same).level, 'none');
+  assert.equal(objectionRobustness({}, {}).level, 'none');
+  // gleicher Pflegegrad trotz mehr Punkten
+  const r = objectionRobustness({ '4.8': 3 }, { '4.8': 3, '4.1': 3 });
+  assert.equal(r.level, 'none');
+  // eigene Bewertung niedriger
+  assert.equal(objectionRobustness({ '4.8': 3, '4.1': 3 }, { '4.8': 0 }).level, 'none');
 });
