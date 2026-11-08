@@ -274,3 +274,23 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
 
 .crit.flash { animation: flash 1.8s ease-out; }
 @keyframes flash { from { box-shadow: 0 0 0 3px var(--teal); } to { box-shadow: 0 0 0 3px transparent; } }
+
+/* Modul 2/3: zählt nicht, weil das andere Modul höher ist */
+.tab .struck { text-decoration: line-through; opacity: .7; }
+.void-banner {
+  border: 2px solid var(--red); background: var(--red-soft); color: var(--ink);
+  border-radius: 12px; padding: 10px 14px; display: flex; flex-direction: column; gap: 4px;
+}
+.void-banner ul { margin: 0; padding-left: 20px; }
+.void-title { font-weight: 700; color: var(--red); }
+.void-tag {
+  display: inline-block; margin-left: 6px; padding: 0 8px; border-radius: 999px; text-transform: none;
+  letter-spacing: 0; font-size: 12px; font-weight: 700; background: var(--red-soft); color: var(--red);
+  border: 1px solid var(--red);
+}
+.crit.void-md .col.md, .crit.void-own .col.own {
+  position: relative; border-radius: 8px; padding: 6px 8px; margin: -6px -8px;
+  background: repeating-linear-gradient(135deg, transparent 0 8px, color-mix(in srgb, var(--red) 12%, transparent) 8px 10px);
+  outline: 1px dashed var(--red);
+}
+.crit.void-md .col.md .ctl, .crit.void-own .col.own .ctl { opacity: .55; }

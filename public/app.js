@@ -156,6 +156,17 @@ function isCounted(score, moduleId) {
   return (moduleId !== 2 && moduleId !== 3) || score.counted23 === moduleId;
 }
 
+// Modul 2/3 verliert gegen das andere: Eingaben dort ändern den Pflegegrad nicht.
+// Ohne Punkte im anderen Modul gibt es nichts zu verlieren (null).
+function voidInfo(score, moduleId) {
+  if (moduleId !== 2 && moduleId !== 3) return null;
+  if (isCounted(score, moduleId)) return null;
+  const other = moduleId === 2 ? 3 : 2;
+  const otherW = score.modules[other].weightedPoints;
+  if (otherW <= 0) return null;
+  return { other, otherW, ownW: score.modules[moduleId].weightedPoints, strict: moduleId === 3 };
+}
+
 const countedWeighted = (score, m) => (isCounted(score, m.id) ? score.modules[m.id].weightedPoints : 0);
 const signed = n => (n > 0 ? `+${fmt(n)}` : fmt(n));
 
@@ -167,8 +178,9 @@ function buildTabs() {
   tabLinks = {};
   const add = (key, href, label) => {
     const count = h('span', { class: 'count', hidden: true });
-    const a = h('a', { class: 'tab', href }, h('span', { text: label }), count);
-    tabLinks[key] = { a, count };
+    const name = h('span', { text: label });
+    const a = h('a', { class: 'tab', href }, name, count);
+    tabLinks[key] = { a, count, name };
     nav.append(a);
   };
   add('overview', '#/overview', 'Übersicht');
@@ -183,8 +195,13 @@ function currentRoute() {
 function updateTabs() {
   const route = currentRoute();
   const activeKey = route.name === 'module' ? `m${route.id}` : 'overview';
-  for (const [key, { a, count }] of Object.entries(tabLinks)) {
+  for (const [key, { a, count, name }] of Object.entries(tabLinks)) {
     a.classList.toggle('active', key === activeKey);
+    const moduleId = key === 'overview' ? 0 : Number(key.slice(1));
+    const dead = voidInfo(calc.own, moduleId);
+    name.classList.toggle('struck', Boolean(dead));
+    if (dead) a.title = `Modul ${moduleId} zählt bei Ihrer Bewertung nicht (Modul ${dead.other} ist höher)`;
+    else a.removeAttribute('title');
     if (key === 'overview') {
       count.hidden = calc.devs.length === 0;
       count.textContent = String(calc.devs.length);
@@ -505,6 +522,7 @@ function renderModule(m) {
 
   const prefillInfo = h('span', { class: 'muted small' });
   const devLine = h('p', { class: 'small' });
+  const voidBanner = h('div', { class: 'void-banner', hidden: true });
   const prefillBtn = h('button', {
     type: 'button', class: 'btn small',
     title: 'Füllt nur eigene Felder, die noch leer sind, mit dem Wert des MD',
@@ -528,6 +546,7 @@ function renderModule(m) {
     h('h2', { text: `Modul ${m.id}: ${m.name}` }),
     h('p', { text: m.desc }),
     h('p', { class: 'muted small', text: `Gewichtung ${m.weight} % am Gesamtergebnis${m.id === 2 || m.id === 3 ? '. Von Modul 2 und 3 zählt nur der höhere gewichtete Wert.' : '.'}` }),
+    voidBanner,
     devLine,
     h('div', { class: 'module-summary' }, mdBox, ownBox),
     h('div', { class: 'module-actions' }, prefillBtn, prefillInfo)
@@ -590,13 +609,15 @@ function renderModule(m) {
     const notes = createNotesWidget(c.id);
     extra.append(justBlock, notes.el);
 
+    const mdVoidTag = h('span', { class: 'void-tag', text: 'zählt nicht', hidden: true });
+    const ownVoidTag = h('span', { class: 'void-tag', text: 'zählt nicht', hidden: true });
     const el = h('article', { class: 'crit', id: `crit-${c.id}`, 'data-state': 'open' },
       h('div', { class: 'crit-head' },
         h('span', { class: 'crit-id', text: c.id }), h('h3', { text: c.name }), devBadge, sameBadge),
       c.type === 'freq' ? null : h('p', { class: 'crit-text', text: c.text }),
       h('div', { class: 'crit-cols' },
-        h('section', { class: 'col md' }, h('h4', { text: 'MD-Gutachten' }), md.el),
-        h('section', { class: 'col own' }, h('h4', { text: 'Eigene Bewertung' }), own.el, copyBtn)
+        h('section', { class: 'col md' }, h('h4', null, 'MD-Gutachten ', mdVoidTag), md.el),
+        h('section', { class: 'col own' }, h('h4', null, 'Eigene Bewertung ', ownVoidTag), own.el, copyBtn)
       ),
       extra
     );
@@ -607,6 +628,12 @@ function renderModule(m) {
       let st = 'open';
       if (mdV !== null && ownV !== null) st = valuesEqual(mdV, ownV) ? 'same' : 'deviation';
       el.dataset.state = st;
+      const mdVoid = Boolean(voidInfo(calc.md, m.id));
+      const ownVoid = Boolean(voidInfo(calc.own, m.id));
+      el.classList.toggle('void-md', mdVoid);
+      el.classList.toggle('void-own', ownVoid);
+      mdVoidTag.hidden = !mdVoid;
+      ownVoidTag.hidden = !ownVoid;
       devBadge.hidden = st !== 'deviation';
       sameBadge.hidden = st !== 'same';
       copyBtn.hidden = mdV === null || st === 'same';
@@ -630,12 +657,33 @@ function renderModule(m) {
       h('div', { class: 'muted small', text: `${ms.answered} von ${ms.total} Kriterien bewertet` })
     ];
     if (m.id === 2 || m.id === 3) {
-      lines.push(h('div', { class: 'small', text: isCounted(s, m.id) ? 'Dieses Modul zählt für den Pflegegrad.' : 'Dieses Modul zählt nicht (das andere Modul ist höher).' }));
+      const otherW = s.modules[m.id === 2 ? 3 : 2].weightedPoints;
+      const notCounted = otherW > ms.weightedPoints
+        ? 'Dieses Modul zählt nicht (das andere Modul ist höher).'
+        : 'Dieses Modul zählt nicht (bei Gleichstand zählt Modul 2).';
+      lines.push(h('div', { class: 'small', text: isCounted(s, m.id) ? 'Dieses Modul zählt für den Pflegegrad.' : notCounted }));
     }
     if (typeof printedRaw === 'number' && printedRaw !== ms.rawPoints) {
       lines.push(h('div', { class: 'warn-text', text: `⚠ Im Gutachten gedruckt: ${fmt(printedRaw)} Einzelpunkte` }));
     }
     body.replaceChildren(...lines);
+  }
+
+  function updateVoidBanner() {
+    const sides = [['Eigene Bewertung', calc.own], ['MD-Gutachten', calc.md]]
+      .map(([label, score]) => [label, voidInfo(score, m.id)])
+      .filter(([, info]) => info);
+    voidBanner.hidden = sides.length === 0;
+    if (sides.length === 0) return;
+    const items = sides.map(([label, info]) => h('li', null,
+      h('strong', { text: `${label}: ` }),
+      `Modul ${info.other} liefert ${fmt(info.otherW)} gewichtete Punkte, Modul ${m.id} nur ${fmt(info.ownW)}. ` +
+      `Eingaben hier ändern den Pflegegrad nicht, solange Modul ${m.id} nicht ${info.strict ? 'mehr als' : 'mindestens'} ${fmt(info.otherW)} gewichtete Punkte erreicht.`));
+    voidBanner.replaceChildren(
+      h('div', { class: 'void-title', text: `⚠ Modul ${m.id} zählt aktuell nicht für den Pflegegrad` }),
+      h('ul', null, items),
+      h('div', { class: 'small', text: 'Von Modul 2 und 3 zählt nur der höhere gewichtete Wert. Begründungen können Sie trotzdem erfassen, sie verändern das Ergebnis aber (noch) nicht.' })
+    );
   }
 
   function update() {
@@ -647,6 +695,7 @@ function renderModule(m) {
       ? 'Keine Abweichungen in diesem Modul.'
       : `${modDevs.length} Abweichungen in diesem Modul, davon ${missingJust} ohne Begründung.`;
     devLine.className = missingJust > 0 ? 'small warn-text' : 'small';
+    updateVoidBanner();
     if (m.id === 5) {
       const a = calc.md.modules[5].detail;
       const b = calc.own.modules[5].detail;

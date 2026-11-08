@@ -25,3 +25,5 @@ Desktop.ini
 *.local
 node_modules/
 data/
+/.junie/
+/case-upload.db
