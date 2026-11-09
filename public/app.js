@@ -212,8 +212,14 @@ function updateTabs() {
     const moduleId = key === 'overview' ? 0 : Number(key.slice(1));
     const dead = voidInfo(calc.own, moduleId);
     name.classList.toggle('struck', Boolean(dead));
-    if (dead) a.title = `Modul ${moduleId} zählt bei Ihrer Bewertung nicht (Modul ${dead.other} ist höher)`;
-    else a.removeAttribute('title');
+    if (dead) {
+      const reason = dead.otherW === dead.ownW
+        ? 'bei Gleichstand zählt Modul 2'
+        : `Modul ${dead.other} ist höher`;
+      a.title = `Modul ${moduleId} zählt bei Ihrer Bewertung nicht (${reason})`;
+    } else {
+      a.removeAttribute('title');
+    }
     if (key === 'overview') {
       count.hidden = calc.devs.length === 0;
       count.textContent = String(calc.devs.length);
@@ -772,19 +778,28 @@ function renderModule(m) {
   }
 
   function updateVoidBanner() {
-    const sides = [['Eigene Bewertung', calc.own], ['MD-Gutachten', calc.md]]
-      .map(([label, score]) => [label, voidInfo(score, m.id)])
-      .filter(([, info]) => info);
-    voidBanner.hidden = sides.length === 0;
-    if (sides.length === 0) return;
-    const items = sides.map(([label, info]) => h('li', null,
-      h('strong', { text: `${label}: ` }),
-      `Modul ${info.other} liefert ${fmt(info.otherW)} gewichtete Punkte, Modul ${m.id} nur ${fmt(info.ownW)}. ` +
-      `Eingaben hier ändern den Pflegegrad nicht, solange Modul ${m.id} nicht ${info.strict ? 'mehr als' : 'mindestens'} ${fmt(info.otherW)} gewichtete Punkte erreicht.`));
+    const info = voidInfo(calc.own, m.id);
+    voidBanner.hidden = !info;
+    if (!info) return;
+
+    let explanation;
+    if (m.id === 3 && info.otherW === 15) {
+      if (info.ownW === 15) {
+        explanation = `Modul 2 und Modul 3 liefern bei Ihrer Bewertung beide 15 gewichtete Punkte (Höchstwert). Bei Gleichstand zählt nach § 15 SGB XI Modul 2. Eingaben hier ändern den Pflegegrad nicht, da Modul 3 den Höchstwert von Modul 2 nicht übertreffen kann.`;
+      } else {
+        explanation = `Modul 2 liefert bei Ihrer Bewertung 15 gewichtete Punkte (Höchstwert), Modul 3 nur ${fmt(info.ownW)}. Eingaben hier ändern den Pflegegrad nicht, da Modul 3 maximal 15 gewichtete Punkte erreichen kann und bei Gleichstand Modul 2 zählt.`;
+      }
+    } else if (info.ownW === info.otherW) {
+      explanation = `Modul 2 und Modul 3 liefern bei Ihrer Bewertung beide ${fmt(info.ownW)} gewichtete Punkte. Bei Gleichstand zählt Modul 2. Eingaben hier ändern den Pflegegrad nicht, solange Modul 3 nicht mehr als ${fmt(info.otherW)} gewichtete Punkte erreicht.`;
+    } else {
+      explanation = `Modul ${info.other} liefert bei Ihrer Bewertung ${fmt(info.otherW)} gewichtete Punkte, Modul ${m.id} nur ${fmt(info.ownW)}. ` +
+        `Eingaben hier ändern den Pflegegrad nicht, solange Modul ${m.id} nicht ${info.strict ? 'mehr als' : 'mindestens'} ${fmt(info.otherW)} gewichtete Punkte erreicht.`;
+    }
+
     voidBanner.replaceChildren(
-      h('div', { class: 'void-title', text: `⚠ Modul ${m.id} zählt aktuell nicht für den Pflegegrad` }),
-      h('ul', null, items),
-      h('div', { class: 'small', text: 'Von Modul 2 und 3 zählt nur der höhere gewichtete Wert. Begründungen können Sie trotzdem erfassen, sie verändern das Ergebnis aber (noch) nicht.' })
+      h('div', { class: 'void-title', text: `⚠ Modul ${m.id} zählt bei Ihrer Bewertung nicht für den Pflegegrad` }),
+      h('p', null, explanation),
+      h('div', { class: 'small', text: 'Von Modul 2 und 3 zählt nur der höhere gewichtete Wert (bei Gleichstand Modul 2). Begründungen können Sie trotzdem erfassen, sie verändern das Ergebnis aber (noch) nicht.' })
     );
   }
 
