@@ -799,7 +799,7 @@ function renderModule(m) {
     voidBanner.replaceChildren(
       h('div', { class: 'void-title', text: `⚠ Modul ${m.id} zählt bei Ihrer Bewertung nicht für den Pflegegrad` }),
       h('p', null, explanation),
-      h('div', { class: 'small', text: 'Von Modul 2 und 3 zählt nur der höhere gewichtete Wert (bei Gleichstand Modul 2). Begründungen können Sie trotzdem erfassen, sie verändern das Ergebnis aber (noch) nicht.' })
+      h('div', { class: 'small', text: 'Von Modul 2 und 3 zählt nur der höhere gewichtete Wert (bei Gleichstand Modul 2). Begründungen sollten Sie trotzdem erfassen, falls einzelne Punkte des anderen Moduls abgelehnt werden und dadurch wieder dieses "gewinnt".' })
     );
   }
 
